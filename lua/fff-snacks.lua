@@ -94,10 +94,10 @@ M.source = {
 
     local fff_result = file_picker.search_files(
       ctx.filter.search,
+      M.state.current_file_cache,
       opts.limit or M.state.config.max_results,
       M.state.config.max_threads,
-      M.state.current_file_cache,
-      false
+      nil
     )
 
     ---@type snacks.picker.finder.Item[]
