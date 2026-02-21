@@ -5,13 +5,6 @@ local M = {}
 local conf = require "fff.conf"
 local file_picker = require "fff.file_picker"
 
----@class FFFSnacksState
----@field current_file_cache? string
----@field config table FFF config
-
----@type FFFSnacksState
-M.state = { config = {} }
-
 local staged_status = {
   staged_new = true,
   staged_modified = true,
@@ -32,6 +25,41 @@ local status_map = {
   -- clear = "",
   unknown = "untracked",
 }
+
+--- pulled from get_current_file_cache in lua/fff/picker_ui.lua
+--- Helper function to determine current file cache for deprioritization
+--- @param base_path string Base path for relative path calculation
+--- @return string|nil Current file cache path
+local function get_current_file(base_path)
+  local current_buf = vim.api.nvim_get_current_buf()
+  if not current_buf or not vim.api.nvim_buf_is_valid(current_buf) then
+    return nil
+  end
+
+  local current_file = vim.api.nvim_buf_get_name(current_buf)
+  if current_file == "" then
+    return nil
+  end
+
+  -- Use vim.uv.fs_stat to check if file exists and is readable
+  local stat = vim.uv.fs_stat(current_file)
+  if not stat or stat.type ~= "file" then
+    return nil
+  end
+
+  local absolute_path = vim.fn.fnamemodify(current_file, ":p")
+  local resolved_abs = vim.fn.resolve(absolute_path)
+  local resolved_base = vim.fn.resolve(base_path)
+
+  -- icloud direcrtoes on macos contain a lot of special characters that break
+  -- the fnamemodify which have to escaped with %
+  local escaped_base = resolved_base:gsub("([%%^$()%.%[%]*+%-?])", "%%%1")
+  local relative_path = resolved_abs:gsub("^" .. escaped_base .. "/", "")
+  if relative_path == "" or relative_path == resolved_abs then
+    return nil
+  end
+  return relative_path
+end
 
 --- tweaked version of `Snacks.picker.format.file_git_status`
 --- @type snacks.picker.format
@@ -70,35 +98,34 @@ end
 
 ---@type snacks.picker.Config
 M.source = {
-  title = "FFFiles",
+  title = "FFF Live Grep",
   finder = function(opts, ctx)
-    -- initialization code from require('fff.picker_ui').open
-    -- on_show does not seem to be called before finder
-    if not M.state.current_file_cache then
-      local current_buf = vim.api.nvim_get_current_buf()
-      if current_buf and vim.api.nvim_buf_is_valid(current_buf) then
-        local current_file = vim.api.nvim_buf_get_name(current_buf)
-        if current_file ~= "" and vim.fn.filereadable(current_file) == 1 then
-          M.state.current_file_cache = current_file
-        else
-          M.state.current_file_cache = nil
-        end
-      end
-    end
+    -- fff.picker_ui: initialize_picker
     if not file_picker.is_initialized() then
       if not file_picker.setup() then
         vim.notify("Failed to initialize file picker", vim.log.levels.ERROR)
         return {}
       end
     end
+
     local config = conf.get()
-    M.state.config = vim.tbl_deep_extend("force", config or {}, opts or {})
+    local merged_config = vim.tbl_deep_extend("force", config or {}, opts or {})
+    if not merged_config then
+      return {}
+    end
+
+    local base_path = vim.uv.cwd()
+    if not base_path then
+      return {}
+    end
+
+    local current_file = get_current_file(base_path)
 
     local fff_result = file_picker.search_files(
       ctx.filter.search,
-      M.state.current_file_cache,
-      opts.limit or M.state.config.max_results,
-      M.state.config.max_threads,
+      current_file,
+      opts.limit or merged_config.max_results,
+      merged_config.max_threads,
       nil
     )
 
@@ -145,9 +172,6 @@ M.source = {
       table.insert(ret, { " " })
     end
     return ret
-  end,
-  on_close = function()
-    M.state.current_file_cache = nil
   end,
   formatters = {
     file = {
