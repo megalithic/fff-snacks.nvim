@@ -1,19 +1,14 @@
--- maps to require("fff").live_grep()
-
 local M = {}
 
-local conf = require "fff.conf"
-local file_picker = require "fff.file_picker"
+local conf = require("fff.conf")
+local file_picker = require("fff.file_picker")
 
----@type FFFSnacksGrepConfig
 M.source = {
-  title = "FFF Live Grep",
+  title = "FFF Grep {flags}",
   format = "file",
   live = true,
 
-  ---@param opts FFFSnacksGrepConfig
   finder = function(opts, ctx)
-    -- fff.picker_ui: initialize_picker
     if not file_picker.is_initialized() then
       if not file_picker.setup() then
         vim.notify("Failed to initialize file picker", vim.log.levels.ERROR)
@@ -38,7 +33,7 @@ M.source = {
 
     opts.grep_mode = opts.grep_mode or vim.tbl_get(merged_config, "grep", "modes") or { "plain", "regex", "fuzzy" }
 
-    local grep = require "fff.grep"
+    local grep = require("fff.grep")
     local grep_result = grep.search(
       ctx.filter.search,
       0,
@@ -47,7 +42,6 @@ M.source = {
       opts.grep_mode[1] or "plain"
     )
 
-    ---@type snacks.picker.finder.Item[]
     local items = {}
     for idx, fff_item in ipairs(grep_result.items) do
       assert(fff_item.line_number, "Expected line_number in grep result item")
@@ -60,17 +54,14 @@ M.source = {
         end
       end
 
-      ---@type snacks.picker.finder.Item
       local item = {
         idx = idx,
         cwd = base_path,
         file = fff_item.relative_path,
         line = fff_item.line_content,
-
         pos = pos,
         end_pos = { fff_item.line_number, fff_item.match_ranges[1][2] },
         positions = positions,
-
         score = fff_item.total_frecency_score,
         text = ("%s:%d:%d:%s"):format(fff_item.relative_path, pos[1], pos[2], fff_item.line_content),
       }
@@ -82,13 +73,12 @@ M.source = {
   end,
 
   toggles = {
-    --- for showing the current grep mode next to the title
     _is_grep_mode_plain = { icon = "plain", value = true },
     _is_grep_mode_regex = { icon = "regex", value = true },
     _is_grep_mode_fuzzy = { icon = "fuzzy", value = true },
+    _from_files = { icon = "󰈔→󰱼", value = false }, -- shows when scoped from file picker
   },
 
-  ---@param picker FFFSnacksGrepPicker
   on_show = function(picker)
     local modes = picker.opts.grep_mode or { "plain", "regex", "fuzzy" }
     picker.opts._is_grep_mode_plain = modes[1] == "plain"
@@ -97,10 +87,8 @@ M.source = {
   end,
 
   actions = {
-    ---@param picker FFFSnacksGrepPicker
     cycle_grep_mode = function(picker)
       local modes = picker.opts.grep_mode or { "plain", "regex", "fuzzy" }
-      -- move the first mode to the end of the list
       local first_mode = modes[1]
       table.remove(modes, 1)
       modes[#modes + 1] = first_mode
@@ -110,12 +98,57 @@ M.source = {
       picker.opts._is_grep_mode_fuzzy = modes[1] == "fuzzy"
       picker:refresh()
     end,
+
+    -- Toggle to file mode with unique files from grep results (seeker-style)
+    toggle_to_files = function(picker)
+      local items = picker:items()
+      if #items == 0 then
+        return
+      end
+
+      -- Collect unique file paths from grep results
+      local seen = {}
+      local file_paths = {}
+      for _, item in ipairs(items) do
+        if item.file and not seen[item.file] then
+          seen[item.file] = true
+          table.insert(file_paths, item.file)
+        end
+      end
+
+      if #file_paths == 0 then
+        return
+      end
+
+      picker:close()
+
+      -- Open file picker with these files
+      vim.schedule(function()
+        local cwd = vim.fn.getcwd()
+        local find_files = require("fff-snacks.find_files")
+        Snacks.picker(vim.tbl_deep_extend("force", find_files.source, {
+          _from_grep = true, -- show indicator
+          finder = function()
+            local result = {}
+            for _, file in ipairs(file_paths) do
+              table.insert(result, {
+                text = file,
+                file = file,
+                cwd = cwd,
+              })
+            end
+            return result
+          end,
+        }))
+      end)
+    end,
   },
 
   win = {
     input = {
       keys = {
-        ["<c-y>"] = { "cycle_grep_mode", mode = { "n", "i" }, nowait = true },
+        ["<C-y>"] = { "cycle_grep_mode", mode = { "n", "i" }, nowait = true },
+        ["<C-g>"] = { "toggle_to_files", mode = { "n", "i" } },
       },
     },
   },
