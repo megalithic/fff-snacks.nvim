@@ -66,6 +66,21 @@ end
 ---@type snacks.picker.Config
 M.source = {
   title = "FFFiles",
+
+  toggles = {
+    hidden = { icon = "󰘓", value = false },
+    ignored = { icon = "󰈉", value = false },
+    _from_grep = { icon = "󰱼→", value = false }, -- scoped from grep results
+  },
+
+  ---@param picker snacks.Picker
+  on_show = function(picker)
+    -- Update title to show scoped state
+    if picker.opts._from_grep then
+      picker.opts.title = "FFFiles (scoped from grep)"
+    end
+  end,
+
   finder = function(opts, ctx)
     -- fff.picker_ui: initialize_picker
     if not file_picker.is_initialized() then
@@ -98,7 +113,23 @@ M.source = {
 
     ---@type snacks.picker.finder.Item[]
     local items = {}
+
+    -- If scoped from grep, filter to only those files
+    local scoped_files = opts._scoped_files
+    local scoped_set = nil
+    if scoped_files then
+      scoped_set = {}
+      for _, f in ipairs(scoped_files) do
+        scoped_set[f] = true
+      end
+    end
+
     for _, fff_item in ipairs(fff_result) do
+      -- Skip files not in scoped set (if scoped)
+      if scoped_set and not scoped_set[fff_item.path] then
+        goto continue
+      end
+
       ---@type snacks.picker.finder.Item
       local item = {
         text = fff_item.name,
@@ -113,6 +144,8 @@ M.source = {
         },
       }
       items[#items + 1] = item
+
+      ::continue::
     end
 
     return items

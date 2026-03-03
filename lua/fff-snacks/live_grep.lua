@@ -47,14 +47,30 @@ M.source = {
       opts.grep_mode[1] or "plain"
     )
 
+    -- If scoped from file picker, filter to only those files
+    local scoped_files = opts._scoped_files
+    local scoped_set = nil
+    if scoped_files then
+      scoped_set = {}
+      for _, f in ipairs(scoped_files) do
+        scoped_set[f] = true
+      end
+    end
+
     ---@type snacks.picker.finder.Item[]
     local items = {}
     for idx, fff_item in ipairs(grep_result.items) do
+      -- Skip files not in scoped set (if scoped)
+      if scoped_set and not scoped_set[fff_item.relative_path] then
+        goto continue
+      end
       assert(fff_item.line_number, "Expected line_number in grep result item")
-      local pos = { fff_item.line_number, fff_item.match_ranges[1][1] }
+      local match_ranges = fff_item.match_ranges or {}
+      local first_range = match_ranges[1] or { 0, 0 }
+      local pos = { fff_item.line_number, first_range[1] }
 
       local positions = {}
-      for _, range in ipairs(fff_item.match_ranges) do
+      for _, range in ipairs(match_ranges) do
         for i = range[1] + 1, range[2] do
           positions[#positions + 1] = i
         end
@@ -68,7 +84,7 @@ M.source = {
         line = fff_item.line_content,
 
         pos = pos,
-        end_pos = { fff_item.line_number, fff_item.match_ranges[1][2] },
+        end_pos = { fff_item.line_number, first_range[2] },
         positions = positions,
 
         score = fff_item.total_frecency_score,
@@ -76,16 +92,21 @@ M.source = {
       }
 
       items[#items + 1] = item
+
+      ::continue::
     end
 
     return items
   end,
 
   toggles = {
+    hidden = { icon = "󰘓", value = false },
+    ignored = { icon = "󰈉", value = false },
     --- for showing the current grep mode next to the title
     _is_grep_mode_plain = { icon = "plain", value = true },
     _is_grep_mode_regex = { icon = "regex", value = true },
     _is_grep_mode_fuzzy = { icon = "fuzzy", value = true },
+    _from_files = { icon = "󰈔→", value = false }, -- scoped from file picker
   },
 
   ---@param picker FFFSnacksGrepPicker
@@ -94,6 +115,11 @@ M.source = {
     picker.opts._is_grep_mode_plain = modes[1] == "plain"
     picker.opts._is_grep_mode_regex = modes[1] == "regex"
     picker.opts._is_grep_mode_fuzzy = modes[1] == "fuzzy"
+
+    -- Update title to show current mode
+    local mode_label = modes[1]:sub(1, 1):upper() .. modes[1]:sub(2)
+    local base_title = picker.opts._from_files and "FFF Grep (scoped)" or "FFF Grep"
+    picker.opts.title = base_title .. " [" .. mode_label .. "]"
   end,
 
   actions = {
@@ -108,6 +134,17 @@ M.source = {
       picker.opts._is_grep_mode_plain = modes[1] == "plain"
       picker.opts._is_grep_mode_regex = modes[1] == "regex"
       picker.opts._is_grep_mode_fuzzy = modes[1] == "fuzzy"
+
+      -- Update title to show current mode
+      local mode_label = modes[1]:sub(1, 1):upper() .. modes[1]:sub(2)
+      local base_title = picker.opts._from_files and "FFF Grep (scoped)" or "FFF Grep"
+      picker.opts.title = base_title .. " [" .. mode_label .. "]"
+
+      -- Update title in the window
+      if picker.input and picker.input.win and picker.input.win.win then
+        vim.api.nvim_win_set_config(picker.input.win.win, { title = picker.opts.title })
+      end
+
       picker:refresh()
     end,
   },
