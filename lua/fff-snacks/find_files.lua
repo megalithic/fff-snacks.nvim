@@ -66,6 +66,13 @@ end
 ---@type snacks.picker.Config
 M.source = {
   title = "FFFiles",
+
+  toggles = {
+    hidden = { icon = "󰘓", value = false },
+    ignored = { icon = "󰈉", value = false },
+    _from_grep = { icon = "󰱼→", value = false }, -- scoped from grep results
+  },
+
   finder = function(opts, ctx)
     -- fff.picker_ui: initialize_picker
     if not file_picker.is_initialized() then
@@ -77,9 +84,6 @@ M.source = {
 
     local config = conf.get()
     local merged_config = vim.tbl_deep_extend("force", config or {}, opts or {})
-    if not merged_config then
-      return {}
-    end
 
     local base_path = opts.cwd or vim.uv.cwd()
     if not base_path then
@@ -98,7 +102,39 @@ M.source = {
 
     ---@type snacks.picker.finder.Item[]
     local items = {}
+
+    -- If scoped from grep, filter to only those files
+    local scoped_files = opts._scoped_files
+    local scoped_set = nil
+    if scoped_files then
+      scoped_set = {}
+      local cwd = (base_path:gsub("/$", "")) .. "/"
+      for _, f in ipairs(scoped_files) do
+        -- Normalize: store both relative and absolute versions for matching
+        local rel = f
+        if f:sub(1, #cwd) == cwd then
+          rel = f:sub(#cwd + 1)
+        end
+        scoped_set[rel] = true
+        scoped_set[f] = true  -- Also store original in case paths are already relative
+      end
+    end
+
     for _, fff_item in ipairs(fff_result) do
+      -- Skip files not in scoped set (if scoped)
+      if scoped_set then
+        -- Check both the raw path and a relative version
+        local path = fff_item.path
+        local rel_path = path
+        local cwd = (base_path:gsub("/$", "")) .. "/"
+        if path:sub(1, #cwd) == cwd then
+          rel_path = path:sub(#cwd + 1)
+        end
+        if not scoped_set[path] and not scoped_set[rel_path] then
+          goto continue
+        end
+      end
+
       ---@type snacks.picker.finder.Item
       local item = {
         text = fff_item.name,
@@ -113,6 +149,8 @@ M.source = {
         },
       }
       items[#items + 1] = item
+
+      ::continue::
     end
 
     return items
