@@ -53,8 +53,10 @@ M.config = {
     cycle_picker = "<c-g>",
   },
   titles = {
-    files_from_grep = "FFFiles (from grep)",
-    grep_from_files = "FFF Grep (from files)",
+    files = "Files",
+    files_from_grep = "Files (from grep)",
+    live_grep = "Live Grep",
+    grep_from_files = "Live Grep (from files)",
   },
   scoping = {
     warn_threshold = nil,      -- warn if scoping > N files (nil = disabled)
@@ -251,7 +253,7 @@ function M._build_sources()
 
     vim.schedule(function()
       -- Build title with search trail
-      local base_title = use_scoping and M.config.titles.grep_from_files or "FFF Grep"
+      local base_title = use_scoping and M.config.titles.grep_from_files or M.config.titles.live_grep
       local title = M._format_title_with_trail(base_title, trail)
 
       local grep_source = vim.tbl_deep_extend("force", M.sources.live_grep, {
@@ -346,7 +348,7 @@ function M._build_sources()
 
     vim.schedule(function()
       -- Build title with search trail
-      local base_title = use_scoping and M.config.titles.files_from_grep or "FFFiles"
+      local base_title = use_scoping and M.config.titles.files_from_grep or M.config.titles.files
       local title = M._format_title_with_trail(base_title, trail)
 
       local files_source = vim.tbl_deep_extend("force", M.sources.find_files, {
@@ -416,9 +418,16 @@ end
 ---@param opts? FFFSnacksGrepConfig
 function M.grep_word(opts)
   opts = opts or {}
-  opts.search = function(picker)
-    return picker:word()
+  -- Get word before picker creation so we can show it in title
+  local word = vim.fn.expand("<cword>")
+  -- Check for visual selection
+  local mode = vim.fn.mode()
+  if mode == "v" or mode == "V" then
+    vim.cmd('noau normal! "vy')
+    word = vim.fn.getreg("v")
   end
+  opts.search = word
+  opts.title = string.format('Grep "%s"', word)
   M.live_grep(opts)
 end
 

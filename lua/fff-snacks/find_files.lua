@@ -65,7 +65,7 @@ end
 
 ---@type snacks.picker.Config
 M.source = {
-  title = "FFFiles",
+  title = "Files",
 
   toggles = {
     hidden = { icon = "󰘓", value = false },

@@ -7,7 +7,7 @@ local file_picker = require "fff.file_picker"
 
 ---@type FFFSnacksGrepConfig
 M.source = {
-  title = "FFF Live Grep",
+  title = "Live Grep",
   format = "file",
   live = true,
 
@@ -130,7 +130,7 @@ M.source = {
 
     -- Preserve base title for cycle_grep_mode to reuse
     if not picker.opts._base_title then
-      picker.opts._base_title = picker.opts.title or "FFF Live Grep"
+      picker.opts._base_title = picker.opts.title or "Live Grep"
     end
 
     local mode_label = modes[1]:sub(1, 1):upper() .. modes[1]:sub(2)
@@ -152,7 +152,7 @@ M.source = {
 
       -- Update title to show current mode
       local mode_label = modes[1]:sub(1, 1):upper() .. modes[1]:sub(2)
-      picker.opts.title = (picker.opts._base_title or "FFF Live Grep") .. " [" .. mode_label .. "]"
+      picker.opts.title = (picker.opts._base_title or "Live Grep") .. " [" .. mode_label .. "]"
 
       -- Update title in the window
       if picker.input and picker.input.win and picker.input.win.win then
