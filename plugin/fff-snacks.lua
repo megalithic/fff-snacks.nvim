@@ -19,15 +19,22 @@ else
 end
 
 vim.api.nvim_create_user_command("FFFSnacks", function(args)
-  local sub = args.fargs[1]
-  if sub == "find_files" or sub == nil then
+  if not (Snacks and pcall(require, "snacks.picker")) then
+    vim.notify("fff-snacks: Snacks is not loaded", vim.log.levels.ERROR)
+    return
+  end
+
+  local sub = args.fargs[1] or "find_files"
+  if sub == "find_files" then
     fff_snacks.find_files()
   elseif sub == "live_grep" then
     fff_snacks.live_grep({ grep_mode = { "plain", "regex", "fuzzy" } })
   elseif sub == "fuzzy" then
     fff_snacks.live_grep({ grep_mode = { "fuzzy", "regex", "plain" } })
+  elseif sub == "grep_word" then
+    fff_snacks.grep_word()
   else
-    vim.notify("fff-snacks: Invalid argument. Use 'find_files', 'live_grep', or 'fuzzy'", vim.log.levels.ERROR)
+    vim.notify("fff-snacks: Invalid argument. Use 'find_files', 'live_grep', 'fuzzy', or 'grep_word'", vim.log.levels.ERROR)
   end
 end, {
   nargs = "?",
@@ -36,6 +43,7 @@ end, {
       "find_files",
       "live_grep",
       "fuzzy",
+      "grep_word",
     }
   end,
   desc = "Open FFF in snacks picker",

@@ -1,23 +1,17 @@
 ---@module 'snacks'
 
----@class snacks.picker.sources.Config
----@field fff snacks.picker.Config
----@field fff_live_grep FFFSnacksGrepConfig
+---@module 'fff_snacks'
 
----@class snacks.picker
----@field fff fun(opts?: snacks.picker.Config): snacks.Picker
----@field fff_live_grep fun(opts?: FFFSnacksGrepConfig): snacks.Picker
+---@alias fff_snacks.GrepMode "plain" | "regex" | "fuzzy"
 
----@alias FFFGrepMode "plain" | "regex" | "fuzzy"
-
----@class FFFSnacksGrepConfig: snacks.picker.Config
----@field grep_mode? FFFGrepMode[]
+---@class fff_snacks.GrepConfig: snacks.picker.Config
+---@field grep_mode? fff_snacks.GrepMode[]
 ---@field _is_grep_mode_plain? boolean
 ---@field _is_grep_mode_regex? boolean
 ---@field _is_grep_mode_fuzzy? boolean
 
----@class FFFSnacksGrepPicker: snacks.Picker
----@field opts FFFSnacksGrepConfig
+---@class fff_snacks.GrepPicker: snacks.Picker
+---@field opts fff_snacks.GrepConfig
 
 ---@class FFFSnacksKeysConfig
 ---@field cycle_grep_mode? string Keybinding to cycle grep modes (default: "<c-y>")
@@ -65,7 +59,9 @@ M.config = {
   jump = {
     reuse_win = true,          -- focus existing window if buffer is already open
   },
+
 }
+
 
 ---@param opts? FFFSnacksSetupOpts
 function M.setup(opts)
