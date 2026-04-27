@@ -1,6 +1,6 @@
 ---
 id: fff-9mmd
-status: closed
+status: open
 deps: []
 links: []
 created: 2026-04-25T01:41:36Z
@@ -53,3 +53,29 @@ Cross-ref: dotfiles ticket dot-7ezy watches progress of this work (~/.dotfiles/.
 **2026-04-27T12:28:19Z**
 
 Fixed by adding utils.canonicalize (mirrors fff.nvim's picker_ui.canonicalize_fff_path). find_files.lua and live_grep.lua now resolve relative_path -> absolute via conf.get().base_path. Graceful fallback to fff_item.path retains compat with pre-#387 fff.nvim, so README min-version bump skipped (criterion 6 condition not triggered).
+
+**2026-04-27T regression: doubled path on grep open/preview**
+
+Reopened. Live_grep results break with `error: file not found: /<base>//<base>/<rel>` (literal `//` in middle). Reproduced when nvim cwd == base_path too, so it's not cwd-specific.
+
+Root cause: snacks.nvim `lua/snacks/picker/util/init.lua:15` `M.path()` joins unconditionally:
+```lua
+item.cwd and item.cwd .. "/" .. item.file or item.file
+```
+It never checks if `item.file` is already absolute. When the previous fix set `file = abs_path` in live_grep.lua but kept `cwd = base_path`, every subsequent `M.path(item)` produced `base_path .. "/" .. abs_path`. find_files.lua was unaffected because it never set item.cwd.
+
+Fix: drop `cwd = base_path` from the live_grep item. `file = abs_path` is sufficient — `M.path()` returns it as-is.
+
+Audit of `item.cwd` consumers in snacks (verified safe to drop for grep finder):
+- `util.path()` / `util.dir()` — was the bug; dropping resolves both (dir was also producing doubled path)
+- `preview.lua:210` cmd-proc previewer cwd — N/A (file previewer in use)
+- `actions.lua` git_stage/restore/stash/checkout — N/A for grep results
+- `matcher.lua:378` filter prefix grouping — falls back to `path()`, still correct
+- `format.lua` truncpath display — keyed off `picker:cwd()`, not `item.cwd`
+
+Follow-up (deferred, not part of this ticket's fix):
+1. Consider promoting `cwd = base_path` to source/picker-level (`opts.cwd`) so `picker:cwd()` returns fff base. Cleans up truncpath display when nvim cwd != fff base_path. Currently picker:cwd() = vim.fn.getcwd(0) by default.
+2. live_grep.lua reads `local base_path = opts.cwd or vim.uv.cwd()` for scoped_set comparison, but fff's grep `relative_path` is anchored to `conf.get().base_path`. If those differ, scoped filtering can mismatch. Should use conf.get().base_path consistently.
+3. Upstream snacks bug: `M.path()` joiner should detect absolute `file` and skip cwd prefix. Worth a PR to folke/snacks.nvim.
+
+Acceptance criteria 2 & 3 still apply. Criterion 4 (works against fff.nvim HEAD post-#387) and criterion 5 (graceful fallback for pre-#387) unchanged.

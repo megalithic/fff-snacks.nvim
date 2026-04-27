@@ -96,12 +96,14 @@ M.source = {
 
       -- Resolve to absolute path so opening works when cwd != picker base_path.
       -- Falls back to fff_item.path on older fff.nvim versions (pre PR #387).
+      -- NOTE: do NOT set `cwd` on the item. Snacks.picker.util.path() joins
+      -- `item.cwd .. "/" .. item.file` unconditionally; pairing absolute `file`
+      -- with `cwd` produces `/base//abs/path` and breaks open + preview.
       local abs_path = fff_item.path or utils.canonicalize(fff_item.relative_path)
 
       ---@type snacks.picker.finder.Item
       local item = {
         idx = idx,
-        cwd = base_path,
         file = abs_path,
         line = fff_item.line_content,
 
