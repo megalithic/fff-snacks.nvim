@@ -121,16 +121,20 @@ M.source = {
     end
 
     for _, fff_item in ipairs(fff_result) do
+      -- Resolve to absolute path. fff.nvim PR #387 removed `fff_item.path`;
+      -- fall back to it for older versions, otherwise canonicalize relative_path.
+      local abs_path = fff_item.path or utils.canonicalize(fff_item.relative_path)
+
       -- Skip files not in scoped set (if scoped)
       if scoped_set then
-        -- Check both the raw path and a relative version
-        local path = fff_item.path
-        local rel_path = path
-        local cwd = (base_path:gsub("/$", "")) .. "/"
-        if path:sub(1, #cwd) == cwd then
-          rel_path = path:sub(#cwd + 1)
+        local rel_path = fff_item.relative_path or abs_path
+        if abs_path then
+          local cwd = (base_path:gsub("/$", "")) .. "/"
+          if abs_path:sub(1, #cwd) == cwd then
+            rel_path = abs_path:sub(#cwd + 1)
+          end
         end
-        if not scoped_set[path] and not scoped_set[rel_path] then
+        if not scoped_set[abs_path] and not scoped_set[rel_path] then
           goto continue
         end
       end
@@ -138,7 +142,7 @@ M.source = {
       ---@type snacks.picker.finder.Item
       local item = {
         text = fff_item.name,
-        file = fff_item.path,
+        file = abs_path,
         score = fff_item.total_frecency_score,
         -- HACK: in original snacks implementation status is a string of
         -- `git status --porcelain` output

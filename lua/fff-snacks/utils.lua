@@ -1,5 +1,34 @@
 local M = {}
 
+local conf = require "fff.conf"
+
+--- Resolve an fff item's relative_path to an absolute path.
+--- Mirrors canonicalize_fff_path in fff.nvim's picker_ui.lua. Required since
+--- fff.nvim PR #387 (commit cebacb3) removed the `path` field from items;
+--- only `relative_path` and `name` remain, anchored to the picker's base_path
+--- which may differ from the current cwd.
+--- @param relative_path string|nil
+--- @return string|nil
+function M.canonicalize(relative_path)
+  if not relative_path or relative_path == "" then
+    return nil
+  end
+  local path = relative_path
+  -- Strip Windows long-path prefix (\\?\) — Neovim cannot open these.
+  if vim.startswith(path, "\\\\?\\") then
+    path = path:sub(5)
+  end
+  -- Already absolute: don't re-anchor.
+  if vim.fn.fnamemodify(path, ":p") == path then
+    return path
+  end
+  local base = conf.get().base_path
+  if not base or base == "" then
+    return path
+  end
+  return vim.fs.normalize(base .. "/" .. path)
+end
+
 --- pulled from get_current_file_cache in lua/fff/picker_ui.lua
 --- Helper function to determine current file cache for deprioritization
 --- @param base_path string Base path for relative path calculation

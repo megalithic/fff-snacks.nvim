@@ -1,6 +1,6 @@
 ---
 id: fff-9mmd
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-25T01:41:36Z
@@ -49,3 +49,7 @@ Min fff.nvim version required: cebacb3 or newer (0.6.2+).
 **2026-04-25T01:42:10Z**
 
 Cross-ref: dotfiles ticket dot-7ezy watches progress of this work (~/.dotfiles/.tickets/dot-7ezy.md). Close dot-7ezy after this one closes and :Lazy sync lands the fix.
+
+**2026-04-27T12:28:19Z**
+
+Fixed by adding utils.canonicalize (mirrors fff.nvim's picker_ui.canonicalize_fff_path). find_files.lua and live_grep.lua now resolve relative_path -> absolute via conf.get().base_path. Graceful fallback to fff_item.path retains compat with pre-#387 fff.nvim, so README min-version bump skipped (criterion 6 condition not triggered).

@@ -4,6 +4,7 @@ local M = {}
 
 local conf = require "fff.conf"
 local file_picker = require "fff.file_picker"
+local utils = require "fff-snacks.utils"
 
 ---@type fff_snacks.GrepConfig
 M.source = {
@@ -93,11 +94,15 @@ M.source = {
         end
       end
 
+      -- Resolve to absolute path so opening works when cwd != picker base_path.
+      -- Falls back to fff_item.path on older fff.nvim versions (pre PR #387).
+      local abs_path = fff_item.path or utils.canonicalize(fff_item.relative_path)
+
       ---@type snacks.picker.finder.Item
       local item = {
         idx = idx,
         cwd = base_path,
-        file = fff_item.relative_path,
+        file = abs_path,
         line = fff_item.line_content,
 
         pos = pos,
