@@ -110,10 +110,21 @@ M.source = {
       end
     end
 
+    local show_hidden = opts.hidden == true
+    local show_ignored = opts.ignored == true
+
     for idx, fff_item in ipairs(fff_result) do
       -- Resolve to absolute path. fff.nvim PR #387 removed `fff_item.path`;
       -- fall back to it for older versions, otherwise canonicalize relative_path.
       local abs_path = fff_item.path or utils.canonicalize(fff_item.relative_path)
+
+      -- Filter hidden/ignored based on toggle state
+      if not show_hidden and fff_item.name:sub(1, 1) == "." then
+        goto continue
+      end
+      if not show_ignored and fff_item.git_status == "ignored" then
+        goto continue
+      end
 
       -- Skip files not in scoped set (if scoped)
       if scoped_set then
