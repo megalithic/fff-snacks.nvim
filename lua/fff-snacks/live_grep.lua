@@ -6,6 +6,33 @@ local conf = require "fff.conf"
 local file_picker = require "fff.file_picker"
 local utils = require "fff-snacks.utils"
 
+local grep_ok, grep = pcall(require, "fff.grep")
+if not grep_ok then
+  grep = require "fff.picker_ui.grep_renderer"
+end
+
+--- Resolve grep config from picker opts override and fff config.
+---@param picker_opts table
+---@return table
+local function get_grep_config(picker_opts)
+  local fff_config = conf.get()
+  return vim.tbl_deep_extend("force", fff_config.grep or fff_config.grep_config or {}, picker_opts.grep or picker_opts.grep_config or {})
+end
+
+--- Resolve grep modes from picker opts override, fff config, or fallback defaults
+---@param picker_opts table
+---@return string[]
+local function get_grep_modes(picker_opts)
+  local grep_config = get_grep_config(picker_opts)
+  return picker_opts.grep_mode
+    or grep_config.modes
+    or {
+      "plain",
+      "regex",
+      "fuzzy",
+    }
+end
+
 ---@type fff_snacks.GrepConfig
 M.source = {
   title = "Live Grep",
@@ -14,40 +41,24 @@ M.source = {
 
   ---@param opts fff_snacks.GrepConfig
   finder = function(opts, ctx)
-    -- fff.picker_ui: initialize_picker
-    if not file_picker.is_initialized() then
-      if not file_picker.setup() then
-        vim.notify("Failed to initialize file picker", vim.log.levels.ERROR)
-        return {}
-      end
-    end
-
-    opts = vim.deepcopy(opts) or {}
-
-    local config = conf.get()
-    local merged_config = vim.tbl_deep_extend("force", config or {}, opts)
-    if not merged_config then
-      return {}
-    end
-
-    local base_path = opts.cwd or vim.uv.cwd()
-    if not base_path then
-      return {}
-    end
-
     if ctx.filter.search == "" then
       return {}
     end
 
-    opts.grep_mode = opts.grep_mode or vim.tbl_get(merged_config, "grep", "modes") or { "plain", "regex", "fuzzy" }
+    if opts.cwd ~= nil then
+      vim.notify("The 'cwd' option is not supported in FFF", vim.log.levels.WARN)
+    end
 
-    local grep = require "fff.grep"
+    local fff_config = conf.get()
+    local base_path = fff_config.base_path or vim.fn.getcwd()
+    local grep_config = get_grep_config(opts)
+    local grep_mode = get_grep_modes(opts)
     local grep_result = grep.search(
       ctx.filter.search,
       0,
-      opts.limit or merged_config.max_results,
-      merged_config.grep_config,
-      opts.grep_mode[1] or "plain"
+      opts.limit or fff_config.max_results,
+      grep_config,
+      grep_mode[1]
     )
 
     -- If scoped from file picker, filter to only those files
@@ -63,17 +74,31 @@ M.source = {
           rel = f:sub(#scoped_cwd + 1)
         end
         scoped_set[rel] = true
-        scoped_set[f] = true  -- Also store original
+        scoped_set[f] = true -- Also store original
       end
     end
 
     ---@type snacks.picker.finder.Item[]
     local items = {}
     for idx, fff_item in ipairs(grep_result.items) do
+      -- Resolve to absolute path so opening works when cwd != picker base_path.
+      -- Falls back to fff_item.path on older fff.nvim versions (pre PR #387).
+      -- NOTE: do NOT set `cwd` on the item. Snacks.picker.util.path() joins
+      -- `item.cwd .. "/" .. item.file` unconditionally; pairing absolute `file`
+      -- with `cwd` produces `/base//abs/path` and breaks open + preview.
+      local abs_path = fff_item.path or utils.canonicalize(fff_item.relative_path)
+
       -- Skip files not in scoped set (if scoped)
-      if scoped_set and not scoped_set[fff_item.relative_path] then
-        goto continue
+      if scoped_set then
+        local rel_path = fff_item.relative_path or abs_path
+        if abs_path and abs_path:sub(1, #scoped_cwd) == scoped_cwd then
+          rel_path = abs_path:sub(#scoped_cwd + 1)
+        end
+        if not scoped_set[abs_path] and not scoped_set[rel_path] then
+          goto continue
+        end
       end
+
       assert(fff_item.line_number, "Expected line_number in grep result item")
       local match_ranges = fff_item.match_ranges or {}
 
@@ -93,13 +118,6 @@ M.source = {
           positions[#positions + 1] = i
         end
       end
-
-      -- Resolve to absolute path so opening works when cwd != picker base_path.
-      -- Falls back to fff_item.path on older fff.nvim versions (pre PR #387).
-      -- NOTE: do NOT set `cwd` on the item. Snacks.picker.util.path() joins
-      -- `item.cwd .. "/" .. item.file` unconditionally; pairing absolute `file`
-      -- with `cwd` produces `/base//abs/path` and breaks open + preview.
-      local abs_path = fff_item.path or utils.canonicalize(fff_item.relative_path)
 
       ---@type snacks.picker.finder.Item
       local item = {
@@ -135,7 +153,17 @@ M.source = {
 
   ---@param picker fff_snacks.GrepPicker
   on_show = function(picker)
-    local modes = picker.opts.grep_mode or { "plain", "regex", "fuzzy" }
+    -- fff.picker_ui: initialize_picker
+    if not file_picker.is_initialized() then
+      if not file_picker.setup() then
+        vim.notify("Failed to initialize file picker", vim.log.levels.ERROR)
+        return
+      end
+    end
+
+    local modes = get_grep_modes(picker.opts)
+
+    picker.opts.grep_mode = modes
     picker.opts._is_grep_mode_plain = modes[1] == "plain"
     picker.opts._is_grep_mode_regex = modes[1] == "regex"
     picker.opts._is_grep_mode_fuzzy = modes[1] == "fuzzy"
@@ -152,18 +180,21 @@ M.source = {
   actions = {
     ---@param picker fff_snacks.GrepPicker
     cycle_grep_mode = function(picker)
-      local modes = picker.opts.grep_mode or { "plain", "regex", "fuzzy" }
+      local modes = get_grep_modes(picker.opts)
+
+      local new_modes = vim.deepcopy(modes)
       -- move the first mode to the end of the list
-      local first_mode = modes[1]
-      table.remove(modes, 1)
-      modes[#modes + 1] = first_mode
-      picker.opts.grep_mode = modes
-      picker.opts._is_grep_mode_plain = modes[1] == "plain"
-      picker.opts._is_grep_mode_regex = modes[1] == "regex"
-      picker.opts._is_grep_mode_fuzzy = modes[1] == "fuzzy"
+      local first_mode = new_modes[1]
+      table.remove(new_modes, 1)
+      new_modes[#new_modes + 1] = first_mode
+
+      picker.opts.grep_mode = new_modes
+      picker.opts._is_grep_mode_plain = new_modes[1] == "plain"
+      picker.opts._is_grep_mode_regex = new_modes[1] == "regex"
+      picker.opts._is_grep_mode_fuzzy = new_modes[1] == "fuzzy"
 
       -- Update title to show current mode
-      local mode_label = modes[1]:sub(1, 1):upper() .. modes[1]:sub(2)
+      local mode_label = new_modes[1]:sub(1, 1):upper() .. new_modes[1]:sub(2)
       picker.opts.title = (picker.opts._base_title or "Live Grep") .. " [" .. mode_label .. "]"
 
       -- Update title in the window

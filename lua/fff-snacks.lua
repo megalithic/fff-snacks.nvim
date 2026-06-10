@@ -208,10 +208,9 @@ function M._build_sources()
 
   find_files_source.actions.toggle_to_grep = function(picker)
     local items = picker:items()
-    local cwd = picker.opts.cwd or vim.uv.cwd()
 
     -- Capture current filter text and build search trail
-    local current_text = vim.trim(picker.input.filter.pattern or "")
+    local current_text = vim.trim(picker.input.filter.search or picker.input.filter.pattern or "")
     local trail = vim.deepcopy(picker.opts._search_trail or {})
     if current_text ~= "" then
       trail[#trail + 1] = { text = current_text, type = "files" }
@@ -257,8 +256,7 @@ function M._build_sources()
         _from_files = use_scoping,
         _scoped_files = use_scoping and file_paths or nil,
         _search_trail = trail,
-        _base_title = title,  -- Use title with trail so mode cycling preserves it
-        cwd = cwd,
+        _base_title = title, -- Use title with trail so mode cycling preserves it
       })
       Snacks.picker(grep_source)
     end)
@@ -301,7 +299,6 @@ function M._build_sources()
 
   live_grep_source.actions.toggle_to_files = function(picker)
     local items = picker:items()
-    local cwd = picker.opts.cwd or vim.uv.cwd()
 
     -- Capture current search text and build search trail
     local current_text = vim.trim(picker.input.filter.search or "")
@@ -352,7 +349,6 @@ function M._build_sources()
         _from_grep = use_scoping,
         _scoped_files = use_scoping and file_paths or nil,
         _search_trail = trail,
-        cwd = cwd,
       })
       Snacks.picker(files_source)
     end)

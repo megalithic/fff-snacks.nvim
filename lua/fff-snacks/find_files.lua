@@ -74,29 +74,19 @@ M.source = {
   },
 
   finder = function(opts, ctx)
-    -- fff.picker_ui: initialize_picker
-    if not file_picker.is_initialized() then
-      if not file_picker.setup() then
-        vim.notify("Failed to initialize file picker", vim.log.levels.ERROR)
-        return {}
-      end
+    if opts.cwd ~= nil then
+      vim.notify("The 'cwd' option is not supported in FFF", vim.log.levels.WARN)
     end
 
-    local config = conf.get()
-    local merged_config = vim.tbl_deep_extend("force", config or {}, opts or {})
-
-    local base_path = opts.cwd or vim.uv.cwd()
-    if not base_path then
-      return {}
-    end
-
+    local fff_config = conf.get()
+    local base_path = fff_config.base_path or vim.fn.getcwd()
     local current_file = utils.get_current_file(base_path)
 
     local fff_result = file_picker.search_files(
       ctx.filter.search,
       current_file,
-      opts.limit or merged_config.max_results,
-      merged_config.max_threads,
+      opts.limit or fff_config.max_results,
+      fff_config.max_threads,
       nil
     )
 
@@ -116,11 +106,11 @@ M.source = {
           rel = f:sub(#cwd + 1)
         end
         scoped_set[rel] = true
-        scoped_set[f] = true  -- Also store original in case paths are already relative
+        scoped_set[f] = true -- Also store original in case paths are already relative
       end
     end
 
-    for _, fff_item in ipairs(fff_result) do
+    for idx, fff_item in ipairs(fff_result) do
       -- Resolve to absolute path. fff.nvim PR #387 removed `fff_item.path`;
       -- fall back to it for older versions, otherwise canonicalize relative_path.
       local abs_path = fff_item.path or utils.canonicalize(fff_item.relative_path)
@@ -141,9 +131,11 @@ M.source = {
 
       ---@type snacks.picker.finder.Item
       local item = {
-        text = fff_item.name,
+        idx = idx,
         file = abs_path,
+
         score = fff_item.total_frecency_score,
+        text = fff_item.name,
         -- HACK: in original snacks implementation status is a string of
         -- `git status --porcelain` output
         status = status_map[fff_item.git_status] and {
@@ -182,6 +174,16 @@ M.source = {
     end
     return ret
   end,
+
+  on_show = function(_)
+    -- fff.picker_ui: initialize_picker
+    if not file_picker.is_initialized() then
+      if not file_picker.setup() then
+        vim.notify("Failed to initialize file picker", vim.log.levels.ERROR)
+      end
+    end
+  end,
+
   formatters = {
     file = {
       filename_first = true,
