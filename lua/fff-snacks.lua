@@ -205,6 +205,13 @@ function M._build_sources()
   find_files_source.actions.multi_confirm = multi_confirm
   find_files_source.actions.multi_vsplit = { action = "multi_confirm", cmd = "vsplit" }
   find_files_source.actions.multi_split = { action = "multi_confirm", cmd = "split" }
+  find_files_source.actions.toggle_all_files = function(picker)
+    local enabled = not (picker.opts.hidden and picker.opts.ignored)
+    picker.opts.hidden = enabled
+    picker.opts.ignored = enabled
+    picker.list:set_target()
+    picker:find()
+  end
 
   find_files_source.actions.toggle_to_grep = function(picker)
     local items = picker:items()
@@ -271,6 +278,7 @@ function M._build_sources()
   find_files_source.win.input.keys[M.config.keys.cycle_picker] = {
     "toggle_to_grep", mode = { "n", "i" }, desc = "Toggle to grep"
   }
+  find_files_source.win.input.keys["<a-h>"] = { "toggle_all_files", mode = { "n", "i" }, desc = "Toggle all files" }
 
   -- Multi-select aware confirm/split actions
   find_files_source.win.input.keys["<CR>"] = { "multi_vsplit", mode = { "n", "i" } }
@@ -281,6 +289,7 @@ function M._build_sources()
   -- List window keys too
   find_files_source.win.list = find_files_source.win.list or {}
   find_files_source.win.list.keys = find_files_source.win.list.keys or {}
+  find_files_source.win.list.keys["<a-h>"] = { "toggle_all_files", mode = { "n" }, desc = "Toggle all files" }
   find_files_source.win.list.keys["<CR>"] = { "multi_vsplit", mode = { "n" } }
   find_files_source.win.list.keys["<c-v>"] = { "multi_vsplit", mode = { "n" } }
   find_files_source.win.list.keys["<c-s>"] = { "multi_split", mode = { "n" } }

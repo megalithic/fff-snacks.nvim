@@ -28,6 +28,60 @@ local status_map = {
   unknown = "untracked",
 }
 
+---@type table<string, string[]>
+local ignored_cache = {}
+
+---@param text string
+---@param query string
+---@return boolean
+local function fuzzy_match(text, query)
+  if query == "" then
+    return true
+  end
+
+  text = text:lower()
+  query = query:lower()
+
+  local pos = 1
+  for i = 1, #query do
+    local char = query:sub(i, i)
+    local found = text:find(char, pos, true)
+    if not found then
+      return false
+    end
+    pos = found + 1
+  end
+
+  return true
+end
+
+---@param base_path string
+---@return string[]
+local function git_ignored_files(base_path)
+  if ignored_cache[base_path] then
+    return ignored_cache[base_path]
+  end
+
+  local output = vim.fn.system {
+    "git",
+    "-C",
+    base_path,
+    "ls-files",
+    "--others",
+    "--ignored",
+    "--exclude-standard",
+    "-z",
+  }
+
+  if vim.v.shell_error ~= 0 or output == "" then
+    ignored_cache[base_path] = {}
+    return ignored_cache[base_path]
+  end
+
+  ignored_cache[base_path] = vim.split(output, "\0", { plain = true, trimempty = true })
+  return ignored_cache[base_path]
+end
+
 --- tweaked version of `Snacks.picker.format.file_git_status`
 --- @type snacks.picker.format
 local function format_file_git_status(item, picker)
@@ -112,6 +166,7 @@ M.source = {
 
     local show_hidden = opts.hidden == true
     local show_ignored = opts.ignored == true
+    local seen_files = {}
 
     for idx, fff_item in ipairs(fff_result) do
       -- Resolve to absolute path. fff.nvim PR #387 removed `fff_item.path`;
@@ -156,8 +211,43 @@ M.source = {
         },
       }
       items[#items + 1] = item
+      if abs_path then
+        seen_files[abs_path] = true
+      end
 
       ::continue::
+    end
+
+    if show_ignored then
+      for _, rel_path in ipairs(git_ignored_files(base_path)) do
+        if not fuzzy_match(rel_path, ctx.filter.search or "") then
+          goto ignored_continue
+        end
+
+        local abs_path = vim.fs.normalize((base_path:gsub("/$", "")) .. "/" .. rel_path)
+        if seen_files[abs_path] then
+          goto ignored_continue
+        end
+
+        if scoped_set and not scoped_set[abs_path] and not scoped_set[rel_path] then
+          goto ignored_continue
+        end
+
+        items[#items + 1] = {
+          idx = #items + 1,
+          file = abs_path,
+          score = 0,
+          text = vim.fn.fnamemodify(rel_path, ":t"),
+          status = {
+            status = "ignored",
+            staged = false,
+            unmerged = false,
+          },
+        }
+        seen_files[abs_path] = true
+
+        ::ignored_continue::
+      end
     end
 
     return items
