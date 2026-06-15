@@ -132,6 +132,15 @@ M.source = {
       vim.notify("The 'cwd' option is not supported in FFF", vim.log.levels.WARN)
     end
 
+    -- Snacks can run the finder before on_show. Initialize here so the
+    -- opening empty search can return the preloaded file list.
+    if not file_picker.is_initialized() then
+      if not file_picker.setup() then
+        vim.notify("Failed to initialize file picker", vim.log.levels.ERROR)
+        return {}
+      end
+    end
+
     local fff_config = conf.get()
     local base_path = fff_config.base_path or vim.fn.getcwd()
     local current_file = utils.get_current_file(base_path)
