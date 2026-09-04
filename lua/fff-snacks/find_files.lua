@@ -128,10 +128,6 @@ M.source = {
   },
 
   finder = function(opts, ctx)
-    if opts.cwd ~= nil then
-      vim.notify("The 'cwd' option is not supported in FFF", vim.log.levels.WARN)
-    end
-
     -- Snacks can run the finder before on_show. Initialize here so the
     -- opening empty search can return the preloaded file list.
     if not file_picker.is_initialized() then
@@ -142,16 +138,15 @@ M.source = {
     end
 
     local fff_config = conf.get()
-    local base_path = fff_config.base_path or vim.fn.getcwd()
+    local base_path = opts.cwd or fff_config.base_path or vim.fn.getcwd()
     local current_file = utils.get_current_file(base_path)
 
-    local fff_result = file_picker.search_files(
-      ctx.filter.search,
-      current_file,
-      opts.limit or fff_config.max_results,
-      fff_config.max_threads,
-      nil
-    )
+    local fff_result = require("fff").file_search(ctx.filter.search, {
+      cwd = base_path,
+      current_file = current_file,
+      max_results = opts.limit or fff_config.max_results,
+      max_threads = fff_config.max_threads,
+    }).items
 
     ---@type snacks.picker.finder.Item[]
     local items = {}

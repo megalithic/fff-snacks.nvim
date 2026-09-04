@@ -260,6 +260,7 @@ function M._build_sources()
 
       local grep_source = vim.tbl_deep_extend("force", M.sources.live_grep, {
         title = title,
+        cwd = picker.opts.cwd,
         _from_files = use_scoping,
         _scoped_files = use_scoping and file_paths or nil,
         _search_trail = trail,
@@ -355,6 +356,7 @@ function M._build_sources()
 
       local files_source = vim.tbl_deep_extend("force", M.sources.find_files, {
         title = title,
+        cwd = picker.opts.cwd,
         _from_grep = use_scoping,
         _scoped_files = use_scoping and file_paths or nil,
         _search_trail = trail,

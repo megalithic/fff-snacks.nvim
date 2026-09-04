@@ -41,12 +41,8 @@ M.source = {
       return {}
     end
 
-    if opts.cwd ~= nil then
-      vim.notify("The 'cwd' option is not supported in FFF", vim.log.levels.WARN)
-    end
-
     local fff_config = conf.get()
-    local base_path = fff_config.base_path or vim.fn.getcwd()
+    local base_path = opts.cwd or fff_config.base_path or vim.fn.getcwd()
     local grep_config = get_grep_config(opts)
     local grep_mode = get_grep_modes(opts)
     local grep_result = fff.content_search(ctx.filter.search, {
