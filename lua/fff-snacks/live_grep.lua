@@ -2,14 +2,10 @@
 
 local M = {}
 
+local fff = require "fff"
 local conf = require "fff.conf"
 local file_picker = require "fff.file_picker"
 local utils = require "fff-snacks.utils"
-
-local grep_ok, grep = pcall(require, "fff.grep")
-if not grep_ok then
-  grep = require "fff.picker_ui.grep_renderer"
-end
 
 --- Resolve grep config from picker opts override and fff config.
 ---@param picker_opts table
@@ -53,13 +49,17 @@ M.source = {
     local base_path = fff_config.base_path or vim.fn.getcwd()
     local grep_config = get_grep_config(opts)
     local grep_mode = get_grep_modes(opts)
-    local grep_result = grep.search(
-      ctx.filter.search,
-      0,
-      opts.limit or fff_config.max_results,
-      grep_config,
-      grep_mode[1]
-    )
+    local grep_result = fff.content_search(ctx.filter.search, {
+      cwd = base_path,
+      file_offset = 0,
+      page_size = opts.limit or fff_config.max_results,
+      mode = grep_mode[1],
+      max_file_size = grep_config.max_file_size,
+      max_matches_per_file = grep_config.max_matches_per_file,
+      smart_case = grep_config.smart_case,
+      time_budget_ms = grep_config.time_budget_ms,
+      trim_whitespace = grep_config.trim_whitespace,
+    })
 
     -- If scoped from file picker, filter to only those files
     local scoped_files = opts._scoped_files
